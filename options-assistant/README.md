@@ -1,19 +1,47 @@
-# 美股選擇權投資助手 MVP
+# Options Assistant MVP
 
-這是一個可直接在瀏覽器開啟的靜態 PWA 原型，包含：
+Static PWA + small Node proxy for a US options assistant. The default data mode now uses free official sources:
 
-- 每日盤前市場總覽
-- 45-90 DTE 信用價差候選策略
-- 倉位完整資訊一覽
-- 截圖/OCR 匯入後人工確認流程
-- 事件日曆與使用者風控設定
+- MarketData.app: delayed options chains and option marks
+- Alpha Vantage: stock/ETF quotes and earnings calendar
+- FRED: macro series such as 10Y yield, Fed Funds, CPI, unemployment
 
-## 使用方式
+## Run Locally
 
-直接開啟 `index.html`，或在此資料夾啟動任一本機靜態伺服器。
+Set free API keys in the same PowerShell session:
 
-目前行情、OCR、策略推薦都使用可替換的 mock adapter；正式版可接 Tradier、Massive/Polygon、券商報價 API、Google Vision/Azure OCR 或 CSV 匯入。
+```powershell
+$env:MARKETDATA_TOKEN="your_marketdata_token"
+$env:ALPHAVANTAGE_API_KEY="your_alpha_vantage_key"
+$env:FRED_API_KEY="your_fred_key"
+node server.mjs
+```
 
-## 重要聲明
+Open:
 
-本工具只做研究輔助與交易檢查清單，不直接下單，不保證獲利，也不取代個人投資判斷。
+```text
+http://127.0.0.1:4173/index.html
+```
+
+The app defaults to `Free official stack`. Press the refresh quote button to pull:
+
+- `/api/marketdata/chain`
+- `/api/alphavantage/quote`
+- `/api/alphavantage/earnings`
+- `/api/fred/latest`
+
+## Free Data Limits
+
+MarketData.app Free Forever currently provides limited daily credits and 24-hour delayed options data. Alpha Vantage free keys have strict daily request limits. FRED is suitable for macro data but also requires a free API key.
+
+This means the MVP is useful for planning, review, and position management, but not for real-time trading decisions.
+
+## Deployment
+
+For GitHub Pages, only the static UI can run. Official API calls require a backend because API keys must not be exposed in the browser.
+
+For production-like deployment, host `server.mjs` on a Node-capable platform such as Render, Railway, Fly.io, or a small VPS, then deploy the static files from the same origin.
+
+## Disclaimer
+
+This tool is for research support and trade checklist assistance only. It does not place trades, does not guarantee profit, and does not replace personal investment judgment.
