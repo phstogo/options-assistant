@@ -4,7 +4,29 @@ import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
+const envPath = join(root, ".env");
 const port = Number(process.env.PORT || 4173);
+
+const loadEnvFile = async () => {
+  try {
+    const text = await readFile(envPath, "utf8");
+    text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#") && line.includes("="))
+      .forEach((line) => {
+        const index = line.indexOf("=");
+        const key = line.slice(0, index).trim();
+        const rawValue = line.slice(index + 1).trim();
+        const value = rawValue.replace(/^["']|["']$/g, "");
+        if (key && process.env[key] === undefined) process.env[key] = value;
+      });
+  } catch {
+    // .env is optional. Missing keys are reported by each API endpoint.
+  }
+};
+
+await loadEnvFile();
 
 const mime = {
   ".html": "text/html; charset=utf-8",

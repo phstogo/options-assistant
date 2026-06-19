@@ -8,13 +8,25 @@ Static PWA + small Node proxy for a US options assistant. The default data mode 
 
 ## Run Locally
 
-Set free API keys in the same PowerShell session:
+Copy the environment template:
 
 ```powershell
-$env:MARKETDATA_TOKEN="your_marketdata_token"
-$env:ALPHAVANTAGE_API_KEY="your_alpha_vantage_key"
-$env:FRED_API_KEY="your_fred_key"
-node server.mjs
+Copy-Item .env.example .env
+```
+
+Paste your free API keys into `.env`:
+
+```powershell
+MARKETDATA_TOKEN=your_marketdata_token
+ALPHAVANTAGE_API_KEY=your_alpha_vantage_key
+FRED_API_KEY=your_fred_key
+PORT=4173
+```
+
+Start the app:
+
+```powershell
+.\start.ps1
 ```
 
 Open:
