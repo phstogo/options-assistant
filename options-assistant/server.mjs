@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL(".", import.meta.url));
 const envPath = join(root, ".env");
 const port = Number(process.env.PORT || 4173);
+const investingCache = {
+  expiresAt: 0,
+  payload: null,
+};
 
 const loadEnvFile = async () => {
   try {
@@ -47,6 +51,34 @@ const fetchText = async (target, options = {}) => {
   const text = await response.text();
   return { status: response.status, text };
 };
+
+const decodeXml = (value = "") =>
+  value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+
+const xmlValue = (item, tag) => {
+  const match = item.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  return match ? decodeXml(match[1]) : "";
+};
+
+const parseRssItems = (xml) =>
+  [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)].slice(0, 8).map((match) => {
+    const item = match[1];
+    return {
+      title: xmlValue(item, "title"),
+      link: xmlValue(item, "link"),
+      publishedAt: xmlValue(item, "pubDate"),
+      summary: xmlValue(item, "description").slice(0, 220),
+      source: "Investing.com",
+    };
+  }).filter((item) => item.title && item.link);
 
 const proxyMarketDataChain = async (res, url) => {
   if (!process.env.MARKETDATA_TOKEN) {
@@ -123,6 +155,56 @@ const proxyFredLatest = async (res, url) => {
   send(res, response.status, response.text);
 };
 
+const proxyInvestingAnalysis = async (res) => {
+  if (investingCache.payload && Date.now() < investingCache.expiresAt) {
+    send(res, 200, investingCache.payload);
+    return;
+  }
+
+  const feeds = [
+    process.env.INVESTING_ANALYSIS_FEED,
+    "https://www.investing.com/rss/stock_Analysis.rss",
+    "https://www.investing.com/rss/market_overview.rss",
+    "https://www.investing.com/rss/news.rss",
+  ].filter(Boolean);
+
+  const errors = [];
+  for (const feed of feeds) {
+    try {
+      const response = await fetchText(feed, {
+        headers: {
+          Accept: "application/rss+xml, application/xml, text/xml, */*",
+          "User-Agent": "OptionsAssistant/1.0 (+https://github.com/phstogo/options-assistant)",
+        },
+      });
+      if (response.status >= 400) {
+        errors.push(`${feed} returned ${response.status}`);
+        continue;
+      }
+      const items = parseRssItems(response.text);
+      if (!items.length) {
+        errors.push(`${feed} returned no RSS items`);
+        continue;
+      }
+      investingCache.payload = {
+        source: feed,
+        fetchedAt: new Date().toISOString(),
+        items,
+      };
+      investingCache.expiresAt = Date.now() + 30 * 60 * 1000;
+      send(res, 200, investingCache.payload);
+      return;
+    } catch (error) {
+      errors.push(`${feed}: ${error.message}`);
+    }
+  }
+
+  send(res, 502, {
+    error: "Investing.com analysis feed unavailable",
+    details: errors.slice(0, 4),
+  });
+};
+
 const serveStatic = async (res, pathname) => {
   const cleanPath = pathname === "/" ? "/index.html" : decodeURIComponent(pathname);
   const filePath = normalize(join(root, cleanPath));
@@ -149,6 +231,7 @@ createServer(async (req, res) => {
     if (url.pathname === "/api/alphavantage/quote") return proxyAlphaQuote(res, url);
     if (url.pathname === "/api/alphavantage/earnings") return proxyAlphaEarnings(res, url);
     if (url.pathname === "/api/fred/latest") return proxyFredLatest(res, url);
+    if (url.pathname === "/api/investing/analysis") return proxyInvestingAnalysis(res);
     return serveStatic(res, url.pathname);
   } catch (error) {
     return send(res, 500, { error: error.message });

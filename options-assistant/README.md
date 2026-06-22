@@ -5,6 +5,7 @@ Static PWA + small Node proxy for a US options assistant. The default data mode 
 - MarketData.app: delayed options chains and option marks
 - Alpha Vantage: stock/ETF quotes and earnings calendar
 - FRED: macro series such as 10Y yield, Fed Funds, CPI, unemployment
+- Investing.com: public analysis headlines through RSS/feed proxy, when available
 
 ## Run Locally
 
@@ -41,6 +42,19 @@ The app defaults to `Free official stack`. Press the refresh quote button to pul
 - `/api/alphavantage/quote`
 - `/api/alphavantage/earnings`
 - `/api/fred/latest`
+- `/api/investing/analysis`
+
+## Investing.com Analysis
+
+The app includes an `Investing.com analysis` section on the pre-market dashboard. It fetches public RSS/feed-style headlines through `server.mjs` and caches the result for 30 minutes.
+
+This does not bypass login, CAPTCHA, paywalls, or anti-bot controls. If Investing.com changes or blocks a feed, the widget will show unavailable while the rest of the app continues to work.
+
+Optional override in `.env`:
+
+```powershell
+INVESTING_ANALYSIS_FEED=https://www.investing.com/rss/stock_Analysis.rss
+```
 
 ## Free Data Limits
 

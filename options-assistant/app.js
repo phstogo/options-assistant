@@ -23,6 +23,7 @@ const loadSettings = () => {
 const state = {
   quoteTime: new Date(),
   dataStatus: "Free official stack ready",
+  investingStatus: "Investing.com analysis not loaded",
   activeFilter: "all",
   settings: loadSettings(),
   markets: [
@@ -165,6 +166,15 @@ const state = {
     { date: "2026-07-02", title: "NFP window", detail: "Reduce directional exposure before jobs data." },
     { date: "2026-07-15", title: "CPI week", detail: "Avoid chasing if VIX rises into the release." },
     { date: "2026-09-18", title: "Triple/quad witching", detail: "Review positions before expiration week." },
+  ],
+  investingItems: [
+    {
+      title: "Investing.com analysis feed will load on refresh",
+      link: "https://www.investing.com/analysis/",
+      publishedAt: "",
+      summary: "Press refresh to fetch public Investing.com analysis headlines through the local server proxy.",
+      source: "Investing.com",
+    },
   ],
 };
 
@@ -341,10 +351,24 @@ const updateMacroFromFred = async () => {
   }
 };
 
+const updateInvestingAnalysis = async () => {
+  const payload = await fetchJson("/api/investing/analysis");
+  state.investingItems = payload.items || [];
+  state.investingStatus = `Investing.com analysis: ${state.investingItems.length} item(s)`;
+};
+
 const refreshFreeOfficialData = async () => {
   state.dataStatus = "Refreshing free official data...";
   renderDataStatus();
-  const tasks = [updateMarketQuotesFromAlpha(), updatePositionsFromMarketData(), updateEarningsFromAlpha(), updateMacroFromFred()];
+  state.investingStatus = "Refreshing Investing.com analysis...";
+  renderInvestingAnalysis();
+  const tasks = [
+    updateMarketQuotesFromAlpha(),
+    updatePositionsFromMarketData(),
+    updateEarningsFromAlpha(),
+    updateMacroFromFred(),
+    updateInvestingAnalysis(),
+  ];
   const results = await Promise.allSettled(tasks);
   const failures = results.filter((result) => result.status === "rejected");
   state.quoteTime = new Date();
@@ -411,6 +435,25 @@ const renderDataStatus = () => {
   if (badge) badge.textContent = state.dataStatus;
 };
 
+const renderInvestingAnalysis = () => {
+  const list = document.querySelector("#investing-analysis-list");
+  const status = document.querySelector("#investing-analysis-status");
+  if (!list || !status) return;
+  status.textContent = state.investingStatus;
+  list.innerHTML = state.investingItems
+    .map((item) => `
+      <article class="analysis-item">
+        <div>
+          <strong>${item.title}</strong>
+          <span>${item.publishedAt || item.source || "Investing.com"}</span>
+        </div>
+        <p>${item.summary || "No summary available."}</p>
+        <a href="${item.link}" target="_blank" rel="noreferrer">Open source</a>
+      </article>
+    `)
+    .join("");
+};
+
 const renderMetrics = () => {
   document.querySelector("#market-metrics").innerHTML = state.markets
     .map((market) => `
@@ -431,6 +474,29 @@ const renderSignals = () => {
   document.querySelector("#avoid-list").innerHTML = state.avoidList
     .map((item) => `<div class="avoid-item"><strong>${item.symbol}</strong><span>${item.date} - ${item.reason}</span></div>`)
     .join("");
+};
+
+const injectInvestingAnalysis = () => {
+  const dashboard = document.querySelector("#dashboard");
+  if (!dashboard || document.querySelector("#investing-analysis-list")) return;
+  dashboard.insertAdjacentHTML(
+    "beforeend",
+    `
+      <section class="panel investing-panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">External Analysis</p>
+            <h3>Investing.com analysis</h3>
+          </div>
+          <span id="investing-analysis-status">Investing.com analysis not loaded</span>
+        </div>
+        <div class="analysis-grid" id="investing-analysis-list"></div>
+        <p class="note">
+          Headlines are used as context only. Do not treat external commentary as a trade signal without your own price, volatility, and risk checks.
+        </p>
+      </section>
+    `,
+  );
 };
 
 const renderStrategies = () => {
@@ -635,9 +701,11 @@ const renderAll = () => {
   renderPositions();
   renderOcrDraft();
   renderCalendar();
+  renderInvestingAnalysis();
 };
 
 const boot = () => {
+  injectInvestingAnalysis();
   injectDataSettings();
   syncSettingsForm();
   renderAll();
